@@ -38,6 +38,9 @@ detected_object = None
 is_running_sequence = False
 status_message = "SAN SANG: Click chuot chon dich tha -> Bam [SPACE] de Gap!"
 
+# Tinh chỉnh độ sâu hạ tay (Độ cao gắp Z)
+grasp_depth_offset = 0 # Offset hạ sâu thêm (độ)
+
 # WebSocket Client
 ws = None
 
@@ -117,10 +120,10 @@ def calculate_ik(x_r, y_r, z_height_state="approach", obj_angle=0):
         j3 = int(85 + 25 * ratio)
         j4 = 90
     elif z_height_state == "grasp":
-        # Tư thế hạ sát mặt bàn để kẹp vật
-        j2 = int(72 - 20 * ratio)
-        j3 = int(105 + 30 * ratio)
-        j4 = int(105 + 10 * ratio)
+        # Tư thế hạ sát mặt bàn để kẹp vật (đã hạ sâu thêm để chạm chắc chắn vào vật)
+        j2 = int(58 - 18 * ratio - grasp_depth_offset)
+        j3 = int(116 + 26 * ratio + grasp_depth_offset)
+        j4 = int(118 + 8 * ratio)
     else:
         j2, j3, j4 = 90, 90, 90
 
@@ -164,10 +167,10 @@ def execute_pick_and_place(pick_data, place_data):
         send_robot_cmd(f"j 3 {j4}")
         time.sleep(1.5)
 
-        # Bước 3: Đóng kẹp FinRay kẹp chặt vật
+        # Bước 3: Đóng kẹp FinRay kẹp chặt vật (bóp sâu góc 25 độ để ôm chặt)
         status_message = "3/6: Dang kep chat vat..."
-        send_robot_cmd("j 5 40") # Đóng kẹp FinRay
-        time.sleep(1.0)
+        send_robot_cmd("j 5 25") # Đóng kẹp FinRay chặt
+        time.sleep(1.2)
 
         # Bước 4: Nhấc bổng vật lên khỏi mặt bàn
         status_message = "4/6: Dang nhac vat len khoi mat ban..."
@@ -356,19 +359,45 @@ def main():
 
         # 4. Thanh thông báo trạng thái
         overlay = frame.copy()
-        cv2.rectangle(overlay, (10, 10), (900, 90), (0, 0, 0), -1)
+        cv2.rectangle(overlay, (10, 10), (1000, 90), (0, 0, 0), -1)
         cv2.addWeighted(overlay, 0.65, frame, 0.35, 0, frame)
 
-        cv2.putText(frame, f">> {status_message}", (25, 40), 
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
-        cv2.putText(frame, f"PHIM: [SPACE] Gap-Dat | [c] Doi Cam [{current_index}] | [r] Xoa dich | [h] Home | [q] Thoat", 
-                    (25, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        calib_names = ["1. Goc TREN - TRAI", "2. Goc TREN - PHAI", "3. Goc DUOI - PHAI", "4. Goc DUOI - TRAI"]
+        if is_calibrating:
+            step = len(calib_points)
+            if step < 4:
+                guide = f">> CHE DO HIEU CHUAN: Click vao [{calib_names[step]}] to A3"
+            else:
+                guide = ">> Da chon du 4 goc! Dang luu du lieu vao calibration.json..."
+            cv2.putText(frame, guide, (25, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
+            cv2.putText(frame, "Click lan luot 4 goc to A3 theo chieu kim dong ho.", 
+                        (25, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+        else:
+            cv2.putText(frame, f">> {status_message}", (25, 40), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
+            cv2.putText(frame, f"PHIM: [SPACE] Gap | [k] Can 4 goc | [c] Doi Cam | [ [ ] Ha sau ({grasp_depth_offset}) | [h] Home | [q] Thoat", 
+                        (25, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.48, (200, 200, 200), 1)
 
         cv2.imshow("Robot Vision System", frame)
 
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
+        elif key == ord('k'):
+            # Bật chế độ chấm lại 4 góc tờ giấy A3
+            is_calibrating = True
+            calib_points = []
+            print("\n[*] Đã bật chế độ Hiệu chuẩn! Click lần lượt 4 góc tờ giấy A3 trên màn hình...")
+        elif key == ord('['):
+            # Hạ thấp tay thêm để chạm sát mặt bàn
+            grasp_depth_offset += 3
+            status_message = f"Da ha sau them: +{grasp_depth_offset} do. Bam [SPACE] de thu!"
+            print(f"[*] Độ sâu hạ tay hiện tại: +{grasp_depth_offset} độ")
+        elif key == ord(']'):
+            # Nâng cao tay lên nếu bị cọ sát mặt bàn
+            grasp_depth_offset -= 3
+            status_message = f"Da nang cao them: {grasp_depth_offset} do. Bam [SPACE] de thu!"
+            print(f"[*] Độ sâu hạ tay hiện tại: {grasp_depth_offset} độ")
         elif key == ord('c'):
             # Đổi sang camera tiếp theo: 0 -> 2 -> 1 -> 0
             order = [0, 2, 1]
