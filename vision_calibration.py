@@ -130,6 +130,22 @@ def detect_shape(approx, contour):
     else:
         return "VAT THE"
 
+def open_camera(index):
+    """Mở camera bằng DirectShow theo index chỉ định."""
+    print(f"[*] Đang mở Camera index [{index}]...")
+    cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+    if cap.isOpened():
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        for _ in range(3):
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                print(f"[OK] Đã kết nối thành công Camera index [{index}]!")
+                return cap
+    if cap is not None:
+        cap.release()
+    return None
+
 def main():
     global is_calibrating, calib_points, target_place
 
@@ -139,13 +155,16 @@ def main():
 
     has_calib = load_calibration()
 
-    # Mở camera Logitech C270 bằng DirectShow
-    cap = cv2.VideoCapture(2, cv2.CAP_DSHOW)
-    if not cap.isOpened():
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    # Mặc định mở camera index 2 (Logitech C270 của bạn)
+    current_index = 2
+    cap = open_camera(current_index)
+    if cap is None:
+        current_index = 0
+        cap = open_camera(current_index)
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    if cap is None:
+        print("[!] Không mở được camera. Vui lòng cắm lại cổng USB!")
+        return
 
     cv2.namedWindow("Robot Vision System", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Robot Vision System", 1280, 720)
@@ -254,7 +273,7 @@ def main():
                 guide = ">> Da chon du 4 diem! Dang luu du lieu..."
             cv2.putText(frame, guide, (20, 45), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
         else:
-            cv2.putText(frame, "PHIM TAT: [k] Can chinh 4 goc A3 | [r] Xoa diem dich | [q] Thoat", 
+            cv2.putText(frame, f"PHIM TAT: [k] Can chinh | [c] Doi Cam [{current_index}] | [r] Xoa dich | [q] Thoat", 
                         (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 1)
             cv2.putText(frame, "CLICK CHUOT vao bat ky vi tri nao tren ban de chon VI TRI THA!", 
                         (20, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 0), 2)
@@ -264,6 +283,18 @@ def main():
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
+        elif key == ord('c'):
+            # Chuyển đổi qua lại giữa các camera: 2 -> 0 -> 1 -> 2
+            next_idx = 0 if current_index == 2 else (current_index + 1)
+            print(f"[*] Đang chuyển sang Camera index [{next_idx}]...")
+            cap.release()
+            new_cap = open_camera(next_idx)
+            if new_cap is not None:
+                cap = new_cap
+                current_index = next_idx
+            else:
+                print(f"[!] Không mở được index [{next_idx}], giữ lại index [{current_index}]")
+                cap = open_camera(current_index)
         elif key == ord('k'):
             # Bật chế độ hiệu chuẩn lại 4 góc
             is_calibrating = True
