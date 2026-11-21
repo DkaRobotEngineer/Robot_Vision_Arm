@@ -282,9 +282,9 @@ def main():
     cv2.resizeWindow("Robot Vision System", 1280, 720)
     cv2.setMouseCallback("Robot Vision System", mouse_callback)
 
-    # Dải màu xanh dương thuần (loại bỏ màu tím của thân robot)
-    lower_blue = np.array([98, 120, 60])
-    upper_blue = np.array([130, 255, 255])
+    # Dải màu xanh dương thuần khiết (chặn hoàn toàn màu tím H > 120)
+    lower_blue = np.array([102, 140, 70])
+    upper_blue = np.array([122, 255, 255])
 
     while True:
         ret, frame = cap.read()
@@ -305,13 +305,19 @@ def main():
 
         # 2. Quét tìm vật thể
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        temp_obj = None
+        valid_objects = []
         for cnt in contours:
             area = cv2.contourArea(cnt)
-            # Chỉ nhận diện vật có kích thước phù hợp (loại bỏ thân robot to đùng > 4500)
-            if 350 < area < 4500:
+            # Chỉ nhận diện vật có kích thước nắp bút/khối gắp (loại bỏ thân robot)
+            if 300 < area < 2500:
                 rect = cv2.minAreaRect(cnt)
                 (cx, cy), (w, h), angle = rect
+                
+                # Tỉ lệ dài/rộng: vật gắp thường không quá dài ngoẵng như thân robot
+                aspect = max(w, h) / (min(w, h) + 1e-5)
+                if aspect > 3.8:
+                    continue
+
                 box = np.int32(cv2.boxPoints(rect))
                 if w < h:
                     angle += 90
@@ -329,9 +335,15 @@ def main():
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 0), 2)
 
                     if is_reach:
-                        temp_obj = {"x_r": xr, "y_r": yr, "angle": angle}
+                        valid_objects.append({"x_r": xr, "y_r": yr, "angle": angle, "area": area})
 
-        detected_object = temp_obj
+        # Ưu tiên chọn vật thể thật (nằm trong vùng làm việc, tránh thân robot)
+        if len(valid_objects) > 0:
+            # Sắp xếp chọn vật có diện tích đẹp nhất
+            valid_objects.sort(key=lambda o: abs(o["area"] - 800))
+            detected_object = valid_objects[0]
+        else:
+            detected_object = None
 
         # 3. Vẽ điểm đích cần thả
         if target_place is not None:
