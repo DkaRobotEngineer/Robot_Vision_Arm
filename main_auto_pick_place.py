@@ -241,6 +241,22 @@ def mouse_callback(event, x, y, flags, param):
                 }
                 print(f"[ĐÍCH ĐẾN] X: {target_place['x_r']}mm, Y: {target_place['y_r']}mm | Tầm với: {target_place['reachable']}")
 
+def open_camera(index):
+    """Mở camera bằng DirectShow theo index."""
+    print(f"[*] Đang mở Camera index [{index}]...")
+    cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+    if cap.isOpened():
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        for _ in range(3):
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                print(f"[OK] Đã mở thành công Camera index [{index}]!")
+                return cap
+    if cap is not None:
+        cap.release()
+    return None
+
 def main():
     global is_calibrating, calib_points, target_place, detected_object, is_running_sequence
 
@@ -251,12 +267,16 @@ def main():
     load_calibration()
     init_websocket()
 
-    cap = cv2.VideoCapture(2, cv2.CAP_DSHOW)
-    if not cap.isOpened():
-        cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+    # Mặc định index 0 (Logitech C270 của bạn ở Bước 3)
+    current_index = 0
+    cap = open_camera(current_index)
+    if cap is None:
+        current_index = 2
+        cap = open_camera(current_index)
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    if cap is None:
+        print("[!] Không mở được camera. Vui lòng cắm lại cáp USB!")
+        return
 
     cv2.namedWindow("Robot Vision System", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Robot Vision System", 1280, 720)
@@ -326,7 +346,7 @@ def main():
 
         cv2.putText(frame, f">> {status_message}", (25, 40), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 255), 2)
-        cv2.putText(frame, "PHIM: [SPACE] Bat dau Gap-Dat | [r] Xoa dich | [h] Ve Home | [q] Thoat", 
+        cv2.putText(frame, f"PHIM: [SPACE] Gap-Dat | [c] Doi Cam [{current_index}] | [r] Xoa dich | [h] Home | [q] Thoat", 
                     (25, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
 
         cv2.imshow("Robot Vision System", frame)
@@ -334,6 +354,20 @@ def main():
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
+        elif key == ord('c'):
+            # Đổi sang camera tiếp theo: 0 -> 2 -> 1 -> 0
+            order = [0, 2, 1]
+            cur_pos = order.index(current_index) if current_index in order else 0
+            next_idx = order[(cur_pos + 1) % len(order)]
+            print(f"[*] Đang chuyển sang Camera index [{next_idx}]...")
+            cap.release()
+            new_cap = open_camera(next_idx)
+            if new_cap is not None:
+                cap = new_cap
+                current_index = next_idx
+            else:
+                print(f"[!] Không mở được index [{next_idx}], giữ lại index [{current_index}]")
+                cap = open_camera(current_index)
         elif key == ord('r'):
             target_place = None
         elif key == ord('h'):
