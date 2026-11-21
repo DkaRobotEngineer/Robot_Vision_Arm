@@ -261,7 +261,7 @@ def open_camera(index):
     return None
 
 def main():
-    global is_calibrating, calib_points, target_place, detected_object, is_running_sequence
+    global is_calibrating, calib_points, target_place, detected_object, is_running_sequence, status_message, grasp_depth_offset
 
     print("=" * 65)
     print("HỆ THỐNG GẮP ĐẶT TỰ ĐỘNG - ROBOT VISION 5-DOF - UET")
@@ -412,6 +412,13 @@ def main():
             else:
                 print(f"[!] Không mở được index [{next_idx}], giữ lại index [{current_index}]")
                 cap = open_camera(current_index)
+        elif key == ord('w'):
+            # Thử kết nối lại WebSocket
+            print("[*] Đang thử kết nối lại WebSocket ESP32...")
+            if init_websocket():
+                status_message = "Da ket noi ESP32 thanh cong!"
+            else:
+                status_message = "Ket noi ESP32 that bai, kiem tra WiFi RobotArm!"
         elif key == ord('r'):
             target_place = None
         elif key == ord('h'):
