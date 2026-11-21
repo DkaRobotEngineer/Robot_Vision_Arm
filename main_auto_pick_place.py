@@ -282,8 +282,9 @@ def main():
     cv2.resizeWindow("Robot Vision System", 1280, 720)
     cv2.setMouseCallback("Robot Vision System", mouse_callback)
 
-    lower_blue = np.array([90, 90, 50])
-    upper_blue = np.array([135, 255, 255])
+    # Dải màu xanh dương thuần (loại bỏ màu tím của thân robot)
+    lower_blue = np.array([98, 120, 60])
+    upper_blue = np.array([130, 255, 255])
 
     while True:
         ret, frame = cap.read()
@@ -306,7 +307,9 @@ def main():
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         temp_obj = None
         for cnt in contours:
-            if cv2.contourArea(cnt) > 350:
+            area = cv2.contourArea(cnt)
+            # Chỉ nhận diện vật có kích thước phù hợp (loại bỏ thân robot to đùng > 4500)
+            if 350 < area < 4500:
                 rect = cv2.minAreaRect(cnt)
                 (cx, cy), (w, h), angle = rect
                 box = np.int32(cv2.boxPoints(rect))
