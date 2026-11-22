@@ -13,7 +13,7 @@ echo     3. Nguon to ong 5V va ESP32 da bat sang den.
 echo =======================================================================
 echo.
 
-"D:\Python3-12\python.exe" main_auto_pick_place.py
+"D:\Python3-12\python.exe" -u main_auto_pick_place.py
 
 echo.
 echo =======================================================================

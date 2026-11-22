@@ -1,10 +1,10 @@
 {
     "calib_mode": "base_scale",
     "base_pixel": [
-        736,
-        15
+        738,
+        20
     ],
-    "scale_mm_per_pixel": 0.495,
+    "scale_mm_per_pixel": 0.6438,
     "r_min": 80.0,
     "r_max": 340.0,
     "j1_invert": false,
@@ -13,7 +13,7 @@
     "grasp_depth_offset": 0,
     "auto_sort_enabled": false,
     "color_mode": "BLUE",
-    "active_slot": "2",
+    "active_slot": "1",
     "slots": {
         "1": {
             "name": "Khay 1 (Trai)",
