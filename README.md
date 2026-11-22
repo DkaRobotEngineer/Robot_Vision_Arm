@@ -5,9 +5,9 @@
 ---
 
 ## 📌 1. Giới thiệu tổng quan (Overview)
-Dự án cánh tay robot 5 bậc tự do (5-DOF) tích hợp hệ thống thị giác máy tính (Eye-to-Hand Vision System) phục vụ bài toán gắp - đặt (Pick-and-Place) và phân loại vật thể tự động theo tọa độ chỉ định.
+Dự án cánh tay robot 5 bậc tự do (5-DOF) tích hợp hệ thống thị giác máy tính (Eye-to-Hand Vision System) phục vụ bài toán gắp - đặt (Pick-and-Place) và phân loại vật thể tự động theo hình dạng (Hình tròn, Hình vuông, Hình tam giác) vào các khay chỉ định.
 
-Hệ thống kết hợp giữa xử lý ảnh thời gian thực (Python + OpenCV), thuật toán Động học nghịch (Inverse Kinematics) và mạch điều khiển nhúng vi điều khiển ESP32 kết hợp driver PCA9685.
+Hệ thống kết hợp giữa xử lý ảnh thời gian thực (Python + OpenCV), thuật toán Động học nghịch (Inverse Kinematics) và mạch điều khiển nhúng vi điều khiển ESP32 kết hợp driver PCA9685 qua giao thức WebSocket WiFi tốc độ cao.
 
 ---
 
@@ -19,49 +19,58 @@ Hệ thống kết hợp giữa xử lý ảnh thời gian thực (Python + Open
   * `J2 (Shoulder)`: 2x Servo kim loại MG996R (Cụm vai chịu tải chính, hoạt động đồng bộ).
   * `J3 (Elbow)`: 1x Servo kim loại MG996R (Khớp khuỷu tay).
   * `J4 (Wrist Pitch)`: 1x Servo mini MG90S (Khớp gập cổ tay).
-  * `J5 (Wrist Roll)`: 1x Servo mini MG90S (Khớp xoay cổ tay theo hướng vật).
+  * `J5 (Wrist Roll)`: 1x Servo mini MG90S (Khớp xoay cổ tay đón góc vật).
   * `Gripper`: 1x Servo mini MG90S (Đóng / mở cơ cấu kẹp FinRay).
-* **Vi điều khiển & Điều khiển công suất:**
-  * Kit **ESP32** (Dual-Core 240MHz, tích hợp WiFi/BLE).
+* **Vi điều khiển & Nguồn công suất:**
+  * Kit **ESP32** (Dual-Core 240MHz, tích hợp WiFi WebSocket Server `ws://192.168.4.1:81/`).
   * Mạch mở rộng xung PWM 16 kênh **PCA9685** giao tiếp qua chuẩn $I^2C$.
-  * Nguồn tổ ong công suất rời 5V - 10A cấp riêng cho mạch servo.
+  * Nguồn tổ ong 5V - 10A cấp riêng cho dàn servo.
 * **Thị giác máy tính (Vision):**
-  * Webcam **Logitech C270 HD (720p)** bố trí theo cấu hình **Eye-to-Hand** (nhìn vuông góc $90^\circ$ từ trên xuống mặt bàn làm việc).
+  * Webcam **Logitech C270 HD (720p)** bố trí theo cấu hình **Eye-to-Hand** (nhìn thẳng $90^\circ$ từ trên xuống mặt bàn).
 
 ---
 
-## 💻 3. Kiến trúc phần mềm & Thuật toán (Software & Algorithms)
-* **Xử lý ảnh (Computer Vision):**
-  * Sử dụng không gian màu **HSV (Hue - Saturation - Value)** và bộ lọc ngưỡng động để trích xuất vật thể không phụ thuộc ánh sáng môi trường.
-  * Phép toán hình thái học (Morphology Open & Close) lọc sạch nhiễu nền.
-  * Thuật toán trích xuất đường bao (Contour Extraction) & Khung chữ nhật bao quanh nhỏ nhất (`cv2.minAreaRect`) để tính toán chính xác:
-    * **Tâm vật $(X_{pixel}, Y_{pixel})$**
-    * **Góc xoay của vật ($\theta$)** để điều khiển servo xoay kẹp (J5) đón đúng hướng vật.
-* **Hiệu chuẩn tọa độ (Calibration & Homography):**
-  * Ánh xạ tọa độ từ hệ ảnh (Pixel Frame) sang hệ tọa độ thực của bàn Robot (Robot Base Frame theo milimét) bằng ma trận biến đổi phối cảnh (Perspective Transform).
-* **Động học nghịch (Analytical Inverse Kinematics - IK):**
-  * Giải bài toán động học vị trí để chuyển đổi từ tọa độ mục tiêu $(X, Y, Z)$ thành 6 góc quay tương ứng của các khớp servo.
+## 💻 3. Kiến trúc phần mềm & Thuật toán
+1. **Xử lý ảnh & Phân loại hình dạng:**
+   - Trích xuất dải màu HSV xanh dương bão hòa cao ($104 \le H \le 122, S \ge 150$) loại trừ triệt để nhiễu phản chiếu từ thân robot màu tím.
+   - Nhận dạng tự động hình dạng: **HÌNH TRÒN, HÌNH VUÔNG, HÌNH TAM GIÁC** bằng thuật toán đa giác xấp xỉ `cv2.approxPolyDP` và hệ số tròn Circularity.
+2. **Hiệu chuẩn Không cần Giấy A3 (Ruler + Base Calibration):**
+   - Không phụ thuộc vào giấy A3 mỏng dễ xô lệch.
+   - Quy trình 3 click chuột: Click tâm đế robot J1 $\rightarrow$ Click vạch 0cm thước $\rightarrow$ Click vạch 10cm thước $\rightarrow$ Tự động tính tỉ lệ `mm_per_pixel` và lưu vĩnh viễn vào `calibration.json`.
+3. **Hiển thị trực quan Vùng làm việc (Workspace Reach Overlay):**
+   - Cung tròn bán kính $R_{min} = 110\text{ mm}$, $R_{mid} = 150\text{ mm}$, $R_{max} = 200\text{ mm}$ hiển thị trực tiếp trên video.
+4. **Động học nghịch & Điều khiển 6 bước tự động:**
+   - Approach (Lơ lửng trên cao) $\rightarrow$ Descend (Hạ sát bàn) $\rightarrow$ Grasp (Kẹp chặt) $\rightarrow$ Lift (Nhấc cao) $\rightarrow$ Transfer (Chuyển sang đích) $\rightarrow$ Release & Home (Nhả vật & Về vị trí an toàn).
 
 ---
 
-## 🚀 4. Cài đặt & Hướng dẫn sử dụng (Quickstart)
+## 🚀 4. Hướng dẫn sử dụng hệ thống
 
-### 4.1. Yêu cầu môi trường
-* Python 3.10 / 3.11 / 3.12
-* Cài đặt các thư viện phụ thuộc:
-```bash
-pip install -r requirements.txt
-```
+### 4.1. Khởi động nhanh
+1. Bật công tắc nguồn tổ ong 5V cấp cho Robot và ESP32.
+2. Trên Laptop, kết nối vào mạng Wi-Fi: **`RobotArm`** (Mật khẩu: `12345678`).
+3. **LƯU Ý:** Đóng tất cả tab web `192.168.4.1` trên Chrome/điện thoại để không bị nghẽn WebSocket!
+4. Nhấp đúp vào file **`chay_tu_dong.bat`**.
 
-### 4.2. Chạy kiểm tra nhận diện vật thể
-Cắm webcam Logitech C270 vào cổng USB máy tính và chạy:
-```bash
-python test_camera.py
-```
-* **Phím tắt điều khiển:**
-  * `c`: Chuyển đổi giữa các camera (nếu cắm nhiều camera).
-  * `q`: Thoát chương trình.
-  * Kéo các thanh trượt trong cửa sổ `Dieu Chinh Mau HSV` để bắt màu vật thể mong muốn.
+### 4.2. Bảng phím tắt điều khiển trên giao diện camera
+| Phím tắt | Chức năng |
+| :---: | :--- |
+| **`SPACE`** | **Bắt đầu chu trình Gắp & Đặt tự động hoàn toàn** |
+| **`t`** | **Hover Test**: Vươn tới lơ lửng trên vật ngắm tâm X, Y (chờ 3s rồi về Home, không kẹp) |
+| **`g`** | **Grasp Test**: Hạ xuống sát bàn ngắm độ cao Z (chờ 3s rồi về Home) |
+| **`o`** | Mở kẹp Gripper (góc $35^\circ$) |
+| **`p`** | Đóng kẹp Gripper chặt (góc $110^\circ$) |
+| **`[`** / **`]`** | Hạ sâu thêm $+2^\circ$ / Nâng cao lên $-2^\circ$ độ cao gắp sát bàn |
+| **`{`** / **`}`** | Tăng $+3^\circ$ / Giảm $-3^\circ$ lực kẹp chặt của Gripper |
+| **`1`, `2`, `3`** | Chọn nhanh điểm thả: Khay 1 (Trái), Khay 2 (Giữa), Khay 3 (Phải) |
+| **`a`** | **Bật/Tắt chế độ Auto-Sort**: Tự động thả Tròn $\rightarrow$ Khay 1, Vuông $\rightarrow$ Khay 2, Tam giác $\rightarrow$ Khay 3 |
+| **`k`** | **Bật chế độ Hiệu chuẩn** (Click tâm đế J1 $\rightarrow$ 0cm thước $\rightarrow$ 10cm thước) |
+| **`i`** | Đảo chiều quay trái/phải của khớp đế J1 (J1 Invert) |
+| **`c`** | Đổi Camera (Index 0 $\rightarrow$ 2 $\rightarrow$ 1 $\rightarrow$ 0) |
+| **`w`** | Thử kết nối lại WebSocket tới ESP32 |
+| **`h`** | Đưa robot về vị trí an toàn (Home) |
+| **`s`** | Lưu toàn bộ thông số hiệu chuẩn vào file `calibration.json` |
+| **`q`** | Thoát chương trình an toàn |
 
 ---
 
@@ -69,5 +78,7 @@ python test_camera.py
 - [x] Thiết kế 3D, gia công in và lắp ráp cơ khí 5-DOF + Gripper FinRay TPU.
 - [x] Lắp đặt mạch công suất ESP32 + PCA9685 và cấp nguồn servo an toàn.
 - [x] Hoàn thiện module Vision thời gian thực: lọc màu HSV, bắt tâm và góc xoay vật thể.
-- [ ] Tích hợp công cụ Calibration 4 điểm chuyển đổi Pixel $\rightarrow$ Milimét.
-- [ ] Ghép nối thuật toán IK và chu trình gắp - đặt tự động theo điểm click chỉ định.
+- [x] Nâng cấp hiệu chuẩn không cần giấy A3 (Ruler + Base 3-click calibration).
+- [x] Tích hợp thuật toán nhận diện hình dạng (Tròn / Vuông / Tam giác) và Auto-Sorting.
+- [x] Khắc phục triệt để các lỗi cơ học đảo chiều servo và lệch tọa độ.
+- [x] Hoàn thiện giao diện HUD công nghiệp phục vụ báo cáo và bảo vệ đồ án UET.

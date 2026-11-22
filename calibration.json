@@ -1,40 +1,34 @@
 {
-    "H_matrix": [
-        [
-            0.5161001238393148,
-            -0.0038362477782524318,
-            -376.4102734193781
-        ],
-        [
-            0.01070868019231214,
-            -0.5213793093724218,
-            371.7712943314896
-        ],
-        [
-            7.100652694275805e-05,
-            -3.369022530551325e-05,
-            1.0
-        ]
+    "calib_mode": "base_scale",
+    "base_pixel": [
+        736,
+        15
     ],
-    "calib_points": [
-        [
-            314,
-            30
-        ],
-        [
-            1170,
-            6
-        ],
-        [
-            1166,
-            625
-        ],
-        [
-            326,
-            614
-        ]
-    ],
-    "paper_w": 420.0,
-    "paper_h": 297.0,
-    "offset_x": 55.0
+    "scale_mm_per_pixel": 0.495,
+    "j1_invert": false,
+    "gripper_open": 35,
+    "gripper_close": 110,
+    "grasp_depth_offset": 0,
+    "auto_sort_enabled": false,
+    "active_slot": "2",
+    "slots": {
+        "1": {
+            "name": "Khay 1 (Trai)",
+            "x_r": 145.0,
+            "y_r": -75.0,
+            "shape": "TRON"
+        },
+        "2": {
+            "name": "Khay 2 (Giua)",
+            "x_r": 175.0,
+            "y_r": 0.0,
+            "shape": "VUONG"
+        },
+        "3": {
+            "name": "Khay 3 (Phai)",
+            "x_r": 145.0,
+            "y_r": 75.0,
+            "shape": "TAM GIAC"
+        }
+    }
 }
