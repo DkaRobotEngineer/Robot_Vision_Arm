@@ -5,29 +5,32 @@
         15
     ],
     "scale_mm_per_pixel": 0.495,
+    "r_min": 80.0,
+    "r_max": 340.0,
     "j1_invert": false,
     "gripper_open": 35,
     "gripper_close": 110,
     "grasp_depth_offset": 0,
     "auto_sort_enabled": false,
+    "color_mode": "BLUE",
     "active_slot": "2",
     "slots": {
         "1": {
             "name": "Khay 1 (Trai)",
-            "x_r": 145.0,
-            "y_r": -75.0,
+            "x_r": 180.0,
+            "y_r": -90.0,
             "shape": "TRON"
         },
         "2": {
             "name": "Khay 2 (Giua)",
-            "x_r": 175.0,
+            "x_r": 230.0,
             "y_r": 0.0,
             "shape": "VUONG"
         },
         "3": {
             "name": "Khay 3 (Phai)",
-            "x_r": 145.0,
-            "y_r": 75.0,
+            "x_r": 180.0,
+            "y_r": 90.0,
             "shape": "TAM GIAC"
         }
     }
