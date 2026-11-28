@@ -1,27 +1,19 @@
 """
 ================================================================================
-HỆ THỐNG GẮP - ĐẶT TỰ ĐỘNG BẰNG THỊ GIÁC MÁY TÍNH & AI YOLOV8 (PHIÊN BẢN V3)
+HỆ THỐNG GẮP - ĐẶT TỰ ĐỘNG BẰNG THỊ GIÁC MÁY TÍNH & AI YOLOV8 (PHIÊN BẢN V3.1)
 Đồ án Cơ cấu chấp hành - UET (Đại học Công nghệ - ĐHQGHN)
 --------------------------------------------------------------------------------
-Các tính năng nâng cấp V3:
-1. TÍCH HỢP TRỰC TIẾP MÔ HÌNH AI YOLOV8 (OFFLINE LOCAL - KHÔNG CẦN INTERNET):
-   - Chạy hoàn toàn Offline trên file model cục bộ 'yolov8n.pt' (6.5MB).
-   - Nhận diện vật thể thông minh bằng mạng nơ-ron Deep Learning.
-   - Bấm phím [y] hoặc Click nút [2] AI YOLO để Bật/Tắt chế độ AI thời gian thực.
-2. CHẾ ĐỘ CLICK CHUỘT TRỰC TIẾP:
-   - Click Chuột Trái: Chọn VẬT CẦN GẮP bất kỳ trên bàn!
-   - Click Chuột Phải: Chọn ĐÍCH THẢ bất kỳ trên bàn!
-   - Bấm [SPACE]: Robot tự động gắp từ vật chọn sang đích thả!
-3. Mở rộng bán kính vươn: R_min = 80mm, R_max = 340mm (vươn tới tận đáy bàn).
-4. Bảng hướng dẫn Hiệu chuẩn Thước kẻ 3-Click KHỔ LỚN NỔI BẬT ở giữa màn hình.
-5. Thanh công cụ nút bấm ảo dưới đáy màn hình (Click chuột điều khiển trực tiếp).
+Cập nhật V3.1:
+1. Đảo chiều quay đế J1 chuẩn xác (j1_invert = True).
+2. Tự động kết nối lại WebSocket ngầm mỗi 2 giây (Auto-Reconnect khi đổi Wi-Fi).
+3. Cảnh báo ĐỎ rõ ràng trên màn hình khi chưa kết nối vào Wi-Fi 'RobotArm'.
+4. Chặn lệnh di chuyển giả khi chưa có kết nối phần cứng.
 ================================================================================
 """
 
 import os
 import sys
 
-# Tắt toàn bộ kiểm tra online / telemetry của Ultralytics khi kết nối WiFi ESP32 (không có Internet)
 os.environ["YOLO_OFFLINE"] = "1"
 os.environ["ULTRALYTICS_OFFLINE"] = "1"
 
@@ -39,28 +31,27 @@ LOCAL_YOLO_PATH = os.path.join(SCRIPT_DIR, "yolov8n.pt")
 CUSTOM_YOLO_PATH = os.path.join(SCRIPT_DIR, "best_robot_model.pt")
 WS_URL = "ws://192.168.4.1:81/"
 
-# Khóa luồng gửi lệnh robot
 ws_lock = threading.Lock()
 ws = None
 ws_connected = False
 
 # ==========================================
-# CẤU HÌNH & HIỆU CHUẨN MẶC ĐỊNH
+# CẤU HÌNH & HIỆU CHUẨN
 # ==========================================
 config_data = {
     "calib_mode": "base_scale",
-    "base_pixel": [736, 15],       # Tọa độ pixel tâm đế xoay J1
-    "scale_mm_per_pixel": 0.495,   # Tỉ lệ mm / pixel
-    "r_min": 80.0,                 # Bán kính gần nhất có thể với tới (mm)
-    "r_max": 340.0,                # Bán kính xa nhất có thể vươn tới (mm)
-    "j1_invert": True,             # Đảo chiều quay đế J1 nếu cần (Đã đảo chiều chuẩn)
-    "gripper_open": 35,            # Góc mở kẹp FinRay (nhả vật)
-    "gripper_close": 110,          # Góc đóng kẹp FinRay (bóp chặt vật)
-    "grasp_depth_offset": 0,       # Bù trừ độ sâu khi hạ kẹp (độ)
-    "auto_sort_enabled": False,    # Tự động phân loại theo hình dạng
-    "use_ai_yolo": True,           # Mặc định sử dụng AI YOLOv8
-    "color_mode": "BLUE",          # Chế độ màu dự phòng khi tắt AI
-    "active_slot": "2",            # Khay đích mặc định
+    "base_pixel": [716, 117],
+    "scale_mm_per_pixel": 0.6438,
+    "r_min": 80.0,
+    "r_max": 340.0,
+    "j1_invert": True,             # Đã đảo chiều chuẩn theo cơ cấu robot
+    "gripper_open": 35,
+    "gripper_close": 110,
+    "grasp_depth_offset": 0,
+    "auto_sort_enabled": False,
+    "use_ai_yolo": True,
+    "color_mode": "BLUE",
+    "active_slot": "1",
     "slots": {
         "1": {"name": "Khay 1 (Trai)", "x_r": 180.0, "y_r": -90.0, "shape": "TRON"},
         "2": {"name": "Khay 2 (Giua)", "x_r": 230.0, "y_r": 0.0,   "shape": "VUONG"},
@@ -70,7 +61,6 @@ config_data = {
 
 COLOR_MODES = ["BLUE", "ALL", "RED", "YELLOW", "GREEN"]
 
-# Biến trạng thái runtime
 is_calibrating = False
 calib_step = 0
 calib_pts = []
@@ -78,9 +68,8 @@ target_place = None
 manual_pick = None
 detected_object = None
 is_running_sequence = False
-status_message = "SAN SANG: AI YOLO dang hoat dong! Click TRAI chon vat, Click PHAI chon dich -> Bam [SPACE] de Gap!"
+status_message = "SAN SANG: Click TRAI chon vat, Click PHAI chon dich -> Bam [SPACE] de Gap!"
 
-# Nạp mô hình AI YOLO
 yolo_model = None
 model_name = "Dang khoi tao..."
 
@@ -89,33 +78,24 @@ def init_yolo():
     try:
         from ultralytics import YOLO
         if os.path.exists(CUSTOM_YOLO_PATH):
-            print(f"[*] Đang nạp mô hình AI tùy chỉnh: {CUSTOM_YOLO_PATH}...")
             yolo_model = YOLO(CUSTOM_YOLO_PATH)
-            model_name = "Custom Model (best_robot_model.pt)"
-            print(f"[OK] Đã nạp thành công: {model_name}!")
+            model_name = "Custom Model"
             return True
         elif os.path.exists(LOCAL_YOLO_PATH):
-            print(f"[*] Đang nạp mô hình AI cục bộ: {LOCAL_YOLO_PATH}...")
             yolo_model = YOLO(LOCAL_YOLO_PATH)
             model_name = "YOLOv8 Nano (Local)"
-            print(f"[OK] Đã nạp thành công: {model_name}!")
             return True
         else:
-            print("[!] Không tìm thấy file yolov8n.pt cục bộ, chuyển sang chế độ Thị giác màu sắc.")
             yolo_model = None
-            model_name = "Khong tim thay model"
+            model_name = "Khong co model"
             config_data["use_ai_yolo"] = False
             return False
     except Exception as e:
-        print(f"[!] Lỗi khi nạp YOLO: {e}. Chuyển sang chế độ Thị giác màu sắc.")
         yolo_model = None
         model_name = "Loi nap model"
         config_data["use_ai_yolo"] = False
         return False
 
-# ==========================================
-# QUẢN LÝ CẤU HÌNH & KẾT NỐI
-# ==========================================
 def load_config():
     global config_data
     if os.path.exists(CONFIG_FILE):
@@ -123,45 +103,50 @@ def load_config():
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
                 config_data.update(loaded)
-                print("[OK] Đã nạp cấu hình thành công từ calibration.json!")
                 return True
-        except Exception as e:
-            print(f"[!] Lỗi đọc file config: {e}")
+        except Exception:
+            pass
     return False
 
 def save_config():
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config_data, f, indent=4, ensure_ascii=False)
-        print("[OK] Đã lưu cấu hình vào calibration.json!")
         return True
-    except Exception as e:
-        print(f"[!] Lỗi ghi file config: {e}")
+    except Exception:
         return False
 
 def get_ws():
     global ws, ws_connected
     if ws is not None:
         try:
-            ws.sock.settimeout(0.5)
+            ws.sock.settimeout(0.3)
             return ws
         except Exception:
             ws = None
             ws_connected = False
 
     try:
-        ws = websocket.create_connection(WS_URL, timeout=1.5)
+        ws = websocket.create_connection(WS_URL, timeout=1.2)
         ws_connected = True
         print("[OK] Đã kết nối WebSocket thành công tới ESP32!")
         ws.send("spd 1.0")
         return ws
-    except Exception as e:
+    except Exception:
         ws = None
         ws_connected = False
         return None
 
+def auto_reconnect_loop():
+    """Luồng chạy ngầm tự động thử kết nối lại ESP32 mỗi 2.5s khi mất kết nối."""
+    global ws_connected
+    while True:
+        if not ws_connected:
+            get_ws()
+        time.sleep(2.5)
+
 def send_robot_cmd(cmd):
-    global ws, ws_connected
+    global ws, ws_connected, status_message
     with ws_lock:
         sock = get_ws()
         if sock is not None:
@@ -172,11 +157,10 @@ def send_robot_cmd(cmd):
                 print(f"[!] Lỗi gửi lệnh '{cmd}': {e}")
                 ws = None
                 ws_connected = False
+        else:
+            status_message = "LOI: CHUA KET NOI ROBOT! Vui long ket noi WiFi 'RobotArm'!"
         return False
 
-# ==========================================
-# BIẾN ĐỔI HỆ TỌA ĐỘ (CAMERA -> ROBOT)
-# ==========================================
 def pixel_to_robot(u, v):
     u0, v0 = config_data["base_pixel"]
     scale = config_data["scale_mm_per_pixel"]
@@ -196,15 +180,13 @@ def robot_to_pixel(x_r, y_r):
     v = int(round(v0 + x_r / scale))
     return u, v
 
-# ==========================================
-# ĐỘNG HỌC NGHỊCH (IK) CHO CÁNH TAY 5-DOF
-# ==========================================
 def calculate_ik(x_r, y_r, state="approach", obj_angle=0):
-    j1_invert = config_data["j1_invert"]
+    j1_invert = config_data.get("j1_invert", True)
     grasp_offset = config_data["grasp_depth_offset"]
     r_min = config_data.get("r_min", 80.0)
     r_max = config_data.get("r_max", 340.0)
     
+    # 1. Khớp J1 (Đế xoay)
     alpha = math.degrees(math.atan2(y_r, x_r))
     if not j1_invert:
         j1 = int(round(90.0 + alpha))
@@ -212,6 +194,7 @@ def calculate_ik(x_r, y_r, state="approach", obj_angle=0):
         j1 = int(round(90.0 - alpha))
     j1 = int(np.clip(j1, 10, 170))
 
+    # Khoảng cách bán kính R
     r = math.sqrt(x_r**2 + y_r**2)
     ratio = float(np.clip((r - r_min) / (r_max - r_min + 1e-5), 0.0, 1.0))
 
@@ -237,9 +220,6 @@ def calculate_ik(x_r, y_r, state="approach", obj_angle=0):
     j5 = int(round(np.clip(90.0 + obj_angle, 15, 165)))
     return j1, j2, j3, j4, j5
 
-# ==========================================
-# BỘ LỌC MÀU SẮC DỰ PHÒNG (HSV)
-# ==========================================
 def get_color_mask(hsv, mode="BLUE"):
     masks = []
     if mode in ("ALL", "BLUE"):
@@ -268,13 +248,13 @@ def get_color_mask(hsv, mode="BLUE"):
     combined = cv2.morphologyEx(combined, cv2.MORPH_CLOSE, kernel)
     return combined
 
-# ==========================================
-# CÁC CHU TRÌNH ĐIỀU KHIỂN ROBOT
-# ==========================================
 def execute_pick_and_place(pick_data, place_data):
-    global is_running_sequence, status_message
-    is_running_sequence = True
+    global is_running_sequence, status_message, ws_connected
+    if not ws_connected:
+        status_message = "LOI: CHUA KET NOI ROBOT! Vui long ket noi WiFi 'RobotArm'!"
+        return
 
+    is_running_sequence = True
     px, py = pick_data["x_r"], pick_data["y_r"]
     p_ang = pick_data.get("angle", 0.0)
     tx, ty = place_data["x_r"], place_data["y_r"]
@@ -334,16 +314,18 @@ def execute_pick_and_place(pick_data, place_data):
         time.sleep(1.6)
 
         status_message = f"THANH CONG! Da gap vat tu ({px:.0f}, {py:.0f}) sang ({tx:.0f}, {ty:.0f})!"
-        print(f"\n[OK] Chu trình Gắp - Đặt thành công từ ({px:.1f}, {py:.1f}) sang ({tx:.1f}, {ty:.1f})!")
-
     except Exception as e:
         status_message = f"LOI THUC THI: {e}"
-        print(f"[!] Lỗi chu trình gắp: {e}")
     finally:
         is_running_sequence = False
 
 def trigger_hover_test():
-    global is_running_sequence, status_message
+    global is_running_sequence, status_message, ws_connected
+    if not ws_connected:
+        status_message = "LOI: CHUA KET NOI ROBOT! Vui long ket noi WiFi 'RobotArm'!"
+        print("[!] Chưa kết nối ESP32. Hãy kết nối Wi-Fi 'RobotArm'!")
+        return
+
     if is_running_sequence:
         return
     pick_obj = manual_pick if manual_pick is not None else detected_object
@@ -377,7 +359,12 @@ def trigger_hover_test():
     th.start()
 
 def trigger_grasp_test():
-    global is_running_sequence, status_message
+    global is_running_sequence, status_message, ws_connected
+    if not ws_connected:
+        status_message = "LOI: CHUA KET NOI ROBOT! Vui long ket noi WiFi 'RobotArm'!"
+        print("[!] Chưa kết nối ESP32. Hãy kết nối Wi-Fi 'RobotArm'!")
+        return
+
     if is_running_sequence:
         return
     pick_obj = manual_pick if manual_pick is not None else detected_object
@@ -411,22 +398,24 @@ def trigger_grasp_test():
     th.start()
 
 def trigger_pick_and_place():
-    global is_running_sequence, status_message
+    global is_running_sequence, status_message, ws_connected
+    if not ws_connected:
+        status_message = "LOI: CHUA KET NOI ROBOT! Vui long ket noi WiFi 'RobotArm'!"
+        print("[!] Chưa kết nối ESP32. Hãy kết nối Wi-Fi 'RobotArm'!")
+        return
+
     if is_running_sequence:
-        print("[!] Robot đang chạy chu trình, vui lòng đợi!")
         return
 
     pick_obj = manual_pick if manual_pick is not None else detected_object
     if pick_obj is None:
         status_message = "CANH BAO: Vui long Click CHUOT TRAI chon vat can gap tren ban!"
-        print("[!] Chưa chọn vật cần gắp!")
         return
 
     r_min = config_data.get("r_min", 80.0)
     r_max = config_data.get("r_max", 340.0)
     if not (r_min <= pick_obj["dist"] <= r_max):
         status_message = f"VAT NGOAI TAM VOI (R={pick_obj['dist']}mm). Hay keo vat vao gan hon!"
-        print(f"[!] Vật ngoài tầm với: R={pick_obj['dist']}mm")
         return
 
     place_obj = target_place
@@ -448,16 +437,12 @@ def toggle_ai_yolo():
     config_data["use_ai_yolo"] = not config_data.get("use_ai_yolo", True)
     save_config()
     status_message = f"Che do AI YOLOv8: {'BAT' if config_data['use_ai_yolo'] else 'TAT'}"
-    print(f"[*] Chế độ AI YOLOv8: {config_data['use_ai_yolo']}")
 
-# ==========================================
-# BẮT SỰ KIỆN CHUỘT
-# ==========================================
 def mouse_callback(event, x, y, flags, param):
     global is_calibrating, calib_step, calib_pts, target_place, manual_pick
     global status_message, config_data
 
-    # 1. Click các nút bấm ảo ở đáy (Y >= 660)
+    # Click các nút ảo ở đáy
     if event == cv2.EVENT_LBUTTONDOWN and y >= 660:
         if 15 <= x <= 165:
             is_calibrating = True
@@ -487,19 +472,17 @@ def mouse_callback(event, x, y, flags, param):
             trigger_pick_and_place()
             return
 
-    # 2. Xử lý trong chế độ Hiệu chuẩn
+    # Chế độ hiệu chuẩn
     if is_calibrating and event == cv2.EVENT_LBUTTONDOWN:
         if calib_step == 1:
             config_data["base_pixel"] = [x, y]
             calib_step = 2
             status_message = "CALIB (2/3): Dat cay thuoc ke len ban -> Click vao vach 0 CM!"
-            print(f"[*] Đã chọn Tâm Đế Robot: ({x}, {y})")
             return
         elif calib_step == 2:
             calib_pts = [[x, y]]
             calib_step = 3
             status_message = "CALIB (3/3): Click vao vach 10 CM (100mm) tren cay thuoc ke!"
-            print(f"[*] Đã chọn Vạch 0 cm: ({x}, {y})")
             return
         elif calib_step == 3:
             calib_pts.append([x, y])
@@ -513,18 +496,16 @@ def mouse_callback(event, x, y, flags, param):
                 is_calibrating = False
                 calib_step = 0
                 status_message = f"HIEU CHUAN XONG! Ti le: {scale:.4f} mm/px. Goc Robot: {config_data['base_pixel']}"
-                print(f"[OK] Hiệu chuẩn hoàn tất! Tỉ xích: {scale:.4f} mm/pixel")
             else:
                 status_message = "Khoang cach qua ngan, vui long click lai vach 10 cm!"
             return
 
-    # 3. Xử lý ở chế độ bình thường
+    # Chế độ bình thường
     if not is_calibrating:
         if event == cv2.EVENT_LBUTTONDOWN and (flags & cv2.EVENT_FLAG_CTRLKEY):
             config_data["base_pixel"] = [x, y]
             save_config()
             status_message = f"Da doi GOC ROBOT J1 ve Pixel ({x}, {y})!"
-            print(f"[*] Dời Gốc Robot về: ({x}, {y})")
             return
 
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -543,7 +524,6 @@ def mouse_callback(event, x, y, flags, param):
             }
             reach_str = "TRONG TAM VOI" if is_reach else "NGOAI TAM VOI"
             status_message = f"DA CHON VAT GAP: X={manual_pick['x_r']} Y={manual_pick['y_r']}mm (R={manual_pick['dist']}mm - {reach_str}). Click PHAI chon DICH THA!"
-            print(f"[VẬT GẮP] X: {manual_pick['x_r']}mm, Y: {manual_pick['y_r']}mm, R: {manual_pick['dist']}mm ({reach_str})")
             return
 
         if event == cv2.EVENT_RBUTTONDOWN:
@@ -561,11 +541,9 @@ def mouse_callback(event, x, y, flags, param):
             }
             reach_str = "TRONG TAM VOI" if is_reach else "NGOAI TAM VOI"
             status_message = f"DA CHON DICH THA: X={target_place['x_r']} Y={target_place['y_r']}mm. Bam [SPACE] de Gap!"
-            print(f"[ĐÍCH THẢ] X: {target_place['x_r']}mm, Y: {target_place['y_r']}mm, R: {target_place['dist']}mm ({reach_str})")
             return
 
 def open_camera(index):
-    print(f"[*] Đang mở Camera index [{index}]...")
     cap = cv2.VideoCapture(index, cv2.CAP_DSHOW)
     if cap.isOpened():
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
@@ -573,26 +551,21 @@ def open_camera(index):
         for _ in range(3):
             ret, frame = cap.read()
             if ret and frame is not None:
-                print(f"[OK] Đã mở thành công Camera index [{index}]!")
                 return cap
     if cap is not None:
         cap.release()
     return None
 
-# ==========================================
-# CHƯƠNG TRÌNH CHÍNH (MAIN LOOP)
-# ==========================================
 def main():
     global is_calibrating, calib_step, calib_pts, target_place, manual_pick, detected_object
     global is_running_sequence, status_message, ws_connected
 
     print("=" * 75)
-    print("HỆ THỐNG GẮP - ĐẶT TỰ ĐỘNG BẰNG THỊ GIÁC MÁY TÍNH & AI YOLOV8 (V3)")
+    print("HỆ THỐNG GẮP - ĐẶT TỰ ĐỘNG BẰNG THỊ GIÁC MÁY TÍNH & AI YOLOV8 (V3.1)")
     print("=" * 75)
 
     load_config()
 
-    # Mở camera TRƯỚC để hiển thị cửa sổ ngay lập tức
     current_index = 0
     cap = open_camera(current_index)
     if cap is None:
@@ -607,12 +580,14 @@ def main():
     cv2.resizeWindow("Robot Vision System", 1280, 720)
     cv2.setMouseCallback("Robot Vision System", mouse_callback)
 
-    # Nạp YOLO model và kết nối WebSocket ngầm
     init_yolo()
-    threading.Thread(target=get_ws, daemon=True).start()
+    
+    # Khởi chạy luồng tự động kết nối lại WebSocket ngầm
+    t_reconnect = threading.Thread(target=auto_reconnect_loop, daemon=True)
+    t_reconnect.start()
 
-    active_slot = config_data.get("active_slot", "2")
-    slot_info = config_data["slots"].get(active_slot, config_data["slots"]["2"])
+    active_slot = config_data.get("active_slot", "1")
+    slot_info = config_data["slots"].get(active_slot, config_data["slots"]["1"])
     u_slot, v_slot = robot_to_pixel(slot_info["x_r"], slot_info["y_r"])
     target_place = {
         "pixel": (u_slot, v_slot),
@@ -784,15 +759,26 @@ def main():
         cv2.putText(frame, f">> {status_message}", (25, 38),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
 
-        ws_str = "ESP32: DA KET NOI" if ws_connected else "ESP32: DANG KET NOI [w]"
-        ws_col = (0, 255, 0) if ws_connected else (0, 200, 255)
-        ai_str = f"AI: {'ON (YOLOv8)' if use_ai else 'OFF (Mau sac)'} [y]"
+        # Trạng thái ESP32 nổi bật
+        if ws_connected:
+            ws_str = "ESP32: DA KET NOI"
+            ws_col = (0, 255, 0)
+        else:
+            ws_str = "ESP32: CHUA BAT WIFI RobotArm! [w]"
+            ws_col = (0, 0, 255)
+            # Cảnh báo nhấp nháy trên màn hình
+            cv2.rectangle(frame, (850, 15), (1260, 50), (0, 0, 200), -1)
+            cv2.putText(frame, "CHUA KET NOI WIFI RobotArm!", (860, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
+
+        ai_str = f"AI: {'ON (YOLOv8)' if use_ai else 'OFF'} [y]"
+        j1_str = f"J1-Rev: {'ON' if config_data.get('j1_invert', True) else 'OFF'} [i]"
         reach_str = f"Tam voi: {int(r_min)}-{int(r_max)}mm [+/-]"
 
-        status_line = f"{ws_str} | Cam: [{current_index}] | {ai_str} | Model: {model_name[:20]} | {reach_str}"
+        status_line = f"{ws_str} | Cam: [{current_index}] | {ai_str} | {j1_str} | {reach_str}"
         cv2.putText(frame, status_line, (25, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.46, ws_col, 1)
 
-        guide_line = "HUONG DAN: Click TRAI chon vat gap | Click PHAI chon diem tha | Ctrl+Click doi goc robot | Phim [y] Bat/Tat AI"
+        guide_line = "HUONG DAN: Click TRAI chon vat gap | Click PHAI chon diem tha | Ctrl+Click doi goc robot | Phim [w] Ket noi lai"
         cv2.putText(frame, guide_line, (25, 88), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (200, 200, 200), 1)
 
         # 7. Bảng Calib khổ lớn
@@ -856,7 +842,6 @@ def main():
 
         cv2.imshow("Robot Vision System", frame)
 
-        # 9. Phím bấm
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord('q'):
@@ -918,7 +903,7 @@ def main():
             status_message = f"Da nang cao len: {config_data['grasp_depth_offset']:+d} do. Bam [g] de thu!"
 
         elif key == ord('i'):
-            config_data["j1_invert"] = not config_data["j1_invert"]
+            config_data["j1_invert"] = not config_data.get("j1_invert", True)
             save_config()
             status_message = f"Da dao chieu de J1: {'ON' if config_data['j1_invert'] else 'OFF'}"
 
@@ -940,10 +925,11 @@ def main():
             status_message = "Da gui lenh ve Home an toan!"
 
         elif key == ord('w'):
+            print("[*] Đang thử kết nối lại WebSocket ESP32...")
             if get_ws() is not None:
                 status_message = "Ket noi WebSocket ESP32 thanh cong!"
             else:
-                status_message = "Ket noi ESP32 that bai! Hay kiem tra WiFi 'RobotArm' & DONG tab web 192.168.4.1!"
+                status_message = "Ket noi ESP32 that bai! Hay kiem tra WiFi 'RobotArm'!"
 
         elif key == ord('c'):
             order = [0, 2, 1]
