@@ -44,7 +44,7 @@ config_data = {
     "scale_mm_per_pixel": 0.6438,
     "r_min": 80.0,
     "r_max": 340.0,
-    "j1_invert": True,             # Đã đảo chiều chuẩn theo cơ cấu robot
+    "j1_invert": False,            # Chuan huong quay: Y<0 quay Trai, Y>0 quay Phai
     "gripper_open": 35,
     "gripper_close": 110,
     "grasp_depth_offset": 0,
@@ -181,7 +181,7 @@ def robot_to_pixel(x_r, y_r):
     return u, v
 
 def calculate_ik(x_r, y_r, state="approach", obj_angle=0):
-    j1_invert = config_data.get("j1_invert", True)
+    j1_invert = config_data.get("j1_invert", False)
     grasp_offset = config_data["grasp_depth_offset"]
     r_min = config_data.get("r_min", 80.0)
     r_max = config_data.get("r_max", 340.0)
@@ -772,7 +772,7 @@ def main():
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
 
         ai_str = f"AI: {'ON (YOLOv8)' if use_ai else 'OFF'} [y]"
-        j1_str = f"J1-Rev: {'ON' if config_data.get('j1_invert', True) else 'OFF'} [i]"
+        j1_str = f"J1-Rev: {'ON' if config_data.get('j1_invert', False) else 'OFF'} [i]"
         reach_str = f"Tam voi: {int(r_min)}-{int(r_max)}mm [+/-]"
 
         status_line = f"{ws_str} | Cam: [{current_index}] | {ai_str} | {j1_str} | {reach_str}"
@@ -903,7 +903,7 @@ def main():
             status_message = f"Da nang cao len: {config_data['grasp_depth_offset']:+d} do. Bam [g] de thu!"
 
         elif key == ord('i'):
-            config_data["j1_invert"] = not config_data.get("j1_invert", True)
+            config_data["j1_invert"] = not config_data.get("j1_invert", False)
             save_config()
             status_message = f"Da dao chieu de J1: {'ON' if config_data['j1_invert'] else 'OFF'}"
 

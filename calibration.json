@@ -7,7 +7,7 @@
     "scale_mm_per_pixel": 0.6438,
     "r_min": 80.0,
     "r_max": 340.0,
-    "j1_invert": true,
+    "j1_invert": false,
     "gripper_open": 35,
     "gripper_close": 110,
     "grasp_depth_offset": 0,
