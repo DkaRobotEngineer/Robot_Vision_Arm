@@ -1,17 +1,18 @@
 {
     "calib_mode": "base_scale",
     "base_pixel": [
-        738,
-        20
+        716,
+        117
     ],
     "scale_mm_per_pixel": 0.6438,
     "r_min": 80.0,
     "r_max": 340.0,
-    "j1_invert": false,
+    "j1_invert": true,
     "gripper_open": 35,
     "gripper_close": 110,
     "grasp_depth_offset": 0,
     "auto_sort_enabled": false,
+    "use_ai_yolo": true,
     "color_mode": "BLUE",
     "active_slot": "1",
     "slots": {

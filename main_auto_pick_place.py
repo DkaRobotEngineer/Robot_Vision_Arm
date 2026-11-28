@@ -53,7 +53,7 @@ config_data = {
     "scale_mm_per_pixel": 0.495,   # Tỉ lệ mm / pixel
     "r_min": 80.0,                 # Bán kính gần nhất có thể với tới (mm)
     "r_max": 340.0,                # Bán kính xa nhất có thể vươn tới (mm)
-    "j1_invert": False,            # Đảo chiều quay đế J1 nếu cần
+    "j1_invert": True,             # Đảo chiều quay đế J1 nếu cần (Đã đảo chiều chuẩn)
     "gripper_open": 35,            # Góc mở kẹp FinRay (nhả vật)
     "gripper_close": 110,          # Góc đóng kẹp FinRay (bóp chặt vật)
     "grasp_depth_offset": 0,       # Bù trừ độ sâu khi hạ kẹp (độ)
