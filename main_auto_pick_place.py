@@ -44,7 +44,8 @@ config_data = {
     "scale_mm_per_pixel": 0.6438,
     "r_min": 80.0,
     "r_max": 340.0,
-    "j1_invert": False,            # Chuan huong quay: Y<0 quay Trai, Y>0 quay Phai
+    "reach_offset": -35.0,         # Offset tam vuon xa/gan (mm), giup tinh chinh dung tam vat
+    "j1_invert": True,             # Huong quay khop de J1
     "gripper_open": 35,
     "gripper_close": 110,
     "grasp_depth_offset": 0,
@@ -181,8 +182,9 @@ def robot_to_pixel(x_r, y_r):
     return u, v
 
 def calculate_ik(x_r, y_r, state="approach", obj_angle=0):
-    j1_invert = config_data.get("j1_invert", False)
-    grasp_offset = config_data["grasp_depth_offset"]
+    j1_invert = config_data.get("j1_invert", True)
+    grasp_offset = config_data.get("grasp_depth_offset", 0)
+    reach_offset = config_data.get("reach_offset", -35.0)
     r_min = config_data.get("r_min", 80.0)
     r_max = config_data.get("r_max", 340.0)
     
@@ -194,9 +196,10 @@ def calculate_ik(x_r, y_r, state="approach", obj_angle=0):
         j1 = int(round(90.0 - alpha))
     j1 = int(np.clip(j1, 10, 170))
 
-    # Khoảng cách bán kính R
+    # Khoảng cách bán kính R (co/duỗi theo reach_offset)
     r = math.sqrt(x_r**2 + y_r**2)
-    ratio = float(np.clip((r - r_min) / (r_max - r_min + 1e-5), 0.0, 1.0))
+    r_eff = max(r_min, r + reach_offset)
+    ratio = float(np.clip((r_eff - r_min) / (r_max - r_min + 1e-5), 0.0, 1.0))
 
     if state == "home":
         return 90, 90, 90, 90, 90
@@ -337,7 +340,8 @@ def trigger_hover_test():
         global is_running_sequence, status_message
         is_running_sequence = True
         try:
-            status_message = f"TEST HOVER: Dang vuon den lo lung tren vat (R={target['dist']}mm)..."
+            r_eff = max(80.0, target['dist'] + config_data.get('reach_offset', -35.0))
+            status_message = f"TEST HOVER: Dang vuon den lo lung tren vat (R={target['dist']}mm -> R_thuc={r_eff:.0f}mm)..."
             send_robot_cmd(f"j 5 {config_data['gripper_open']}")
             j1, j2, j3, j4, j5 = calculate_ik(target["x_r"], target["y_r"], state="approach", obj_angle=target.get("angle", 0))
             send_robot_cmd(f"j 0 {j1}")
@@ -376,7 +380,8 @@ def trigger_grasp_test():
         global is_running_sequence, status_message
         is_running_sequence = True
         try:
-            status_message = f"TEST Z: Dang ha tay xuong sat ban tai vat (R={target['dist']}mm)..."
+            r_eff = max(80.0, target['dist'] + config_data.get('reach_offset', -35.0))
+            status_message = f"TEST Z: Dang ha tay xuong sat ban (R={target['dist']}mm -> R_thuc={r_eff:.0f}mm)..."
             send_robot_cmd(f"j 5 {config_data['gripper_open']}")
             j1, j2, j3, j4, j5 = calculate_ik(target["x_r"], target["y_r"], state="grasp", obj_angle=target.get("angle", 0))
             send_robot_cmd(f"j 0 {j1}")
@@ -771,14 +776,16 @@ def main():
             cv2.putText(frame, "CHUA KET NOI WIFI RobotArm!", (860, 40),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
 
-        ai_str = f"AI: {'ON (YOLOv8)' if use_ai else 'OFF'} [y]"
-        j1_str = f"J1-Rev: {'ON' if config_data.get('j1_invert', False) else 'OFF'} [i]"
-        reach_str = f"Tam voi: {int(r_min)}-{int(r_max)}mm [+/-]"
+        ai_str = f"AI: {'ON' if use_ai else 'OFF'} [y]"
+        j1_str = f"J1-Rev: {'ON' if config_data.get('j1_invert', True) else 'OFF'} [i]"
+        reach_offset_val = config_data.get('reach_offset', -35.0)
+        reach_str = f"Tam vuon: {reach_offset_val:+.0f}mm [+/-]"
+        z_str = f"Z: {config_data.get('grasp_depth_offset', 0):+d} [[]/]]"
 
-        status_line = f"{ws_str} | Cam: [{current_index}] | {ai_str} | {j1_str} | {reach_str}"
+        status_line = f"{ws_str} | {ai_str} | {j1_str} | {reach_str} | {z_str}"
         cv2.putText(frame, status_line, (25, 65), cv2.FONT_HERSHEY_SIMPLEX, 0.46, ws_col, 1)
 
-        guide_line = "HUONG DAN: Click TRAI chon vat gap | Click PHAI chon diem tha | Ctrl+Click doi goc robot | Phim [w] Ket noi lai"
+        guide_line = "PHIM: [t] Thu Ngam | [g] Thu Gap | [+/-] Vuon Xa/Gan | [ [ / ] ] Ha/Nang Z | [o/p] Kep | [SPACE] Gap-Tha"
         cv2.putText(frame, guide_line, (25, 88), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (200, 200, 200), 1)
 
         # 7. Bảng Calib khổ lớn
@@ -862,15 +869,15 @@ def main():
             calib_pts = []
             status_message = "CALIB (1/3): Click vao TAM CHAN DE ROBOT (Truc J1) o mep tren video!"
 
-        elif key in (ord('+'), ord('=')):
-            config_data["r_max"] = min(400.0, config_data.get("r_max", 340.0) + 15.0)
+        elif key in (ord('+'), ord('='), ord('.')):
+            config_data["reach_offset"] = config_data.get("reach_offset", -35.0) + 5.0
             save_config()
-            status_message = f"Da mo rong ban kinh toi da: R_max = {int(config_data['r_max'])}mm"
+            status_message = f"Da tang tam vuon (+5mm xa hon): Offset={config_data['reach_offset']:+.0f}mm. Bam [t] de thu!"
 
-        elif key == ord('-'):
-            config_data["r_max"] = max(180.0, config_data.get("r_max", 340.0) - 15.0)
+        elif key in (ord('-'), ord('_'), ord(',')):
+            config_data["reach_offset"] = config_data.get("reach_offset", -35.0) - 5.0
             save_config()
-            status_message = f"Da thu hep ban kinh toi da: R_max = {int(config_data['r_max'])}mm"
+            status_message = f"Da thu tam vuon (-5mm gan lai): Offset={config_data['reach_offset']:+.0f}mm. Bam [t] de thu!"
 
         elif key == ord('r'):
             manual_pick = None
@@ -903,7 +910,7 @@ def main():
             status_message = f"Da nang cao len: {config_data['grasp_depth_offset']:+d} do. Bam [g] de thu!"
 
         elif key == ord('i'):
-            config_data["j1_invert"] = not config_data.get("j1_invert", False)
+            config_data["j1_invert"] = not config_data.get("j1_invert", True)
             save_config()
             status_message = f"Da dao chieu de J1: {'ON' if config_data['j1_invert'] else 'OFF'}"
 
